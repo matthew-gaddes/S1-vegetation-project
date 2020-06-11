@@ -1,0 +1,16 @@
+name: ICASAR_development
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - python
+  - numpy
+  - spyder
+  - ipdb
+  - matplotlib=3.0.1
+  - scikit-learn=0.20.0
+  - hdbscan=0.8.18
+  - simplekml               # only needed for the geocoded outputs.
+  - xarray
+  - netcdf4
