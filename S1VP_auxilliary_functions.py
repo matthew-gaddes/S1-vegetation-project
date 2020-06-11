@@ -99,69 +99,10 @@ def mask_nans(phUnw_r3):
     return phUnw_r3_masked
 
 
-#%%
-
-def daisy_chain_from_acquisitions(acquisitions):
-    """Given a list of acquisiton dates, form the names of the interferograms that would create a simple daisy chain of ifgs.
-    Inputs:
-        acquisitions | list | list of acquistiion dates in form YYYYMMDD
-    Returns:
-        daisy_chain | list | names of daisy chain ifgs, in form YYYYMMDD_YYYYMMDD
-    History:
-        2020/02/16 | MEG | Written
-    """
-    daisy_chain = []
-    n_acqs = len(acquisitions)
-    for i in range(n_acqs-1):
-        daisy_chain.append(f"{acquisitions[i]}_{acquisitions[i+1]}")
-    return daisy_chain
 
 
-#%%
 
 
-def set_reference_region(ifgs_r3, ref_region, ref_halfwidth = 20):
-    """
-    A function to set a time series of interfergrams relative to a reference region
-    (i.e. mean of that area/pixel is 0 for each ifg), should be outside deforming and
-    masked regions - no check on this!
-
-    Inputs:
-        ifgs_r3 | rank 3 masked array | ifgs x heightx width
-        ref_region | tuple | xy of pixel in centre of region to be reference
-        ref_halfwidrth | int | half of length of sie of square ref region area
-    Outputs
-        ifgs_r3 | as above
-    """
-    import numpy as np
-    import numpy.ma as ma
-
-    n_ifgs, n_pixs_y, n_pixs_x = ifgs_r3.shape
-
-    ref_means = ma.mean(ifgs_r3[:,ref_region[1]-ref_halfwidth:ref_region[1]+ref_halfwidth,
-                                ref_region[0]-ref_halfwidth:ref_region[0]+ref_halfwidth], axis = (1,2))     # calculate mean of refence region for each ifg
-
-    ref_means = ref_means[:,np.newaxis, np.newaxis]                             # expand to rank 3
-    ref_means = np.repeat(ref_means, n_pixs_y, axis = 1)                        # continued - y direction
-    ref_means = np.repeat(ref_means, n_pixs_x, axis = 2)                        # continued - x direction
-
-    ifgs_r3 -= (ref_means)                                                      # do mean centering
-
-    return ifgs_r3
-
-
-#%%
-
-def apply_mask_to_r3_ifgs(r3_ifgs, mask_coh):
-    """
-    Add a new mask to an existing masked array of rank 3 ifgs (n_ifgs x height x width)
-    """
-    import numpy as np
-    import numpy.ma as ma
-
-    mask_coh_r3 = np.repeat(mask_coh[np.newaxis,:,:],r3_ifgs.shape[0], axis = 0 )
-    r3_ifgs_mask = ma.array(r3_ifgs, mask = mask_coh_r3)
-    return r3_ifgs_mask
 
 #%%
 
@@ -314,99 +255,56 @@ def baseline_from_names(names_list):
 
 #%%
 
-def mask_ifgs(ph, mask_old, mask_new):
-    """
-    Take some masked ifgs and apply a new mask to them (that is bigger than the original one)
+
+def r2_arrays_to_googleEarth(images_r3_ma, lons, lats, layer_name_prefix = 'layer', kmz_filename = 'ICs'):
+    """ Given one or several arrays in a rank3 array, create a multilayer Google Earth file (.kmz) of them.  
     Inputs:
-        ph | r2 array | ifgs as row vectors
-        mask_old | r2 boolean | old mask
-        mask_new | r2 boolean | new mask
+        images_r3_ma | rank3 masked array |x n_images x ny x nx
+        lons | rank 1 array | lons of each pixel in the image.  
+        lats | rank 1 array | lats of each pixel in theimage
+        layer_name_prefix | string | Can be used to set the name of the layes in the kmz (nb of the form layer_name_prefix_001 etc. )
+        kmz_filename | string | Sets the name of the kmz produced
+    Returns:
+        kmz file
+    History:
+        2020/06/10 | MEG | Written
     """
-    from small_plot_functions import col_to_ma
+    
     import numpy as np
     import numpy.ma as ma
-
-    for i, row in enumerate(ph):
-        temp = col_to_ma(ph[i,:], mask_old)                                       # convert column to masked array, and mask out the water
-        temp2 = ma.filled(temp, fill_value = 1)                                                      # convert masked array to array
-        temp3 = ma.array(temp2, mask = mask_new)                                     # and array back to masked array with new amask
-        if i == 0:
-            ph2 = np.zeros((np.size(ph, axis = 0), len(ma.compressed(temp3))))
-        ph2[i,:] = ma.compressed(temp3)
-    return ph2
-
-#%% Make a zipfile from a folder of SLCs
-
-
-
-def chronological_zipfile_list(path):
-    """
-    A function to creat a zipfile.list (input for LiCSAR) that has the files in chronlogical order
-
-    A bit of a mess of a script that handles paths badly and will probably need tweaing
-    """
-
-    import glob
     import os
-    import numpy as np
-    #from small_plot_functions import *
-    import datetime
+    import shutil
+    import simplekml
+    from small_plot_functions import r2_array_to_png
 
-    # get all the zipfiles in the directory
-    PhUnw_files = sorted(glob.glob('./*zip'), key = os.path.getmtime)            # crude way to sort them so they should be in order
+    n_images = images_r3_ma.shape[0]    
+    # 0 temporary folder for intermediate pngs
+    try:
+        os.mkdir('./temp_kml')                                                                       # make a temporay folder to save pngs
+    except:
+        print("Can't create a folder for temporary kmls.  Trying to delete 'temp_kml' incase it exisits already... ", end = "")
+        try:
+            shutil.rmtree('./temp_kml')                                                              # try to remove folder
+            os.mkdir('./temp_kml')                                                                       # make a temporay folder to save pngs
+            print("Done. ")
+        except:
+          raise Exception("Problem making a temporary directory to store intermediate pngs" )
 
-    # extract the date that each SLC was acquired on
-    dates = []
-    for item in PhUnw_files:
-        dates.append(item.split('_')[5][:8])
+    # 1: Initiate the kml
+    kml = simplekml.Kml()
+        
+    # 2 Begin to loop through each iamge
+    for n_image in np.arange(n_images)[::-1]:                                           # Reverse so that first IC is processed last and appears as visible
+        layer_name = f"{layer_name_prefix}_{str(n_image).zfill(3)}"                     # get the name of a layer a sttring
+        r2_array_to_png(images_r3_ma[n_image,], layer_name, './temp_kml/')              # save as an intermediate .png
+        
+        ground = kml.newgroundoverlay(name= layer_name)                                 # add the overlay to the kml file
+        ground.icon.href = f"./temp_kml/{layer_name}.png"                               # and the actual image part
+    
+        ground.gxlatlonquad.coords = [(lons[0], lats[0]), (lons[-1],lats[0]),           # lon, lat of image south west, south east
+                                      (lons[-1], lats[-1]), (lons[0],lats[-1])]         # north east, north west  - order is anticlockwise around the square, startign in the lower left
+       
+    #3: Tidy up at the end
+    kml.savekmz(f"{kmz_filename}.kmz", format=False)                                    # Saving as KMZ
+    shutil.rmtree('./temp_kml')    
 
-    # sort the dates
-    dates_sorted = sorted(dates, key=lambda x: datetime.datetime.strptime(x, '%Y%m%d'))
-    dates_sorted_args = sorted(range(len(dates)), key=lambda x: datetime.datetime.strptime(dates[x], '%Y%m%d'))
-
-    # write the output file
-    file = open('zipfile.list', 'w')
-    for i in dates_sorted_args:
-        file.write( path + PhUnw_files[i][2:] + '\n')
-    file.close()
-
-
-#%% Get the temporal baselines from a folder of SLCs - WIP (needs converting to a function)
-
-def temporal_baselines_from_SLCs(path):
-    """
-    WIP - never tested.
-    """
-
-    import glob
-    import os
-    import numpy as np
-    from small_plot_functions import quick_linegraph
-    import datetime
-
-    # get the files
-    PhUnw_files = sorted(glob.glob(path + '*.zip'), key = os.path.getmtime)            # crude way to sort them so they should be in order
-
-    # extract the date that each SLC was acquired on
-    dates = []
-    for item in PhUnw_files:
-        dates.append(item[17:25])
-
-    # sort the dates
-    dates_sorted = sorted(dates, key=lambda x: datetime.datetime.strptime(x, '%Y%m%d'))
-    #convert
-    dates_datetimes = []
-    for item in dates_sorted:
-        dates_datetimes.append(datetime.datetime.strptime(item, '%Y%m%d'))
-
-
-    temp_baselines = np.zeros((1, len(PhUnw_files) - 1))
-    for i in range(len(PhUnw_files)-1):
-        print(i)
-        temp = dates_datetimes[i+1] - dates_datetimes[i]
-
-        temp_baselines[0,i] = temp.days
-        del temp
-
-
-    quick_linegraph(temp_baselines)

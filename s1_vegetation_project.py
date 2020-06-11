@@ -16,13 +16,13 @@ sys.path.append("/home/matthew/university_work/01_blind_signal_separation_python
 from ICASAR_functions import ICASAR
 
 sys.path.append("/home/matthew/university_work/python_stuff/python_scripts")
-from small_plot_functions import matrix_show, col_to_ma, r2_arrays_to_googleEarth
+#from small_plot_functions import matrix_show, col_to_ma, r2_arrays_to_googleEarth
 # from synth_ts import *
 # from small_plot_functions import low_resolution_ifgs
 # from small_plot_functions import *
 # from ifg_plotting_funcs import * 
-from insar_tools import files_to_daisy_chain, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
-
+#from insar_tools_copy import files_to_daisy_chain, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
+from S1VP_auxilliary_functions import r2_arrays_to_googleEarth, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
 
 
 def xarray_to_numpy(xarray_file):
