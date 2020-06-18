@@ -16,7 +16,7 @@ sys.path.append("/home/matthew/university_work/01_blind_signal_separation_python
 from ICASAR_functions import ICASAR
 
 sys.path.append("/home/matthew/university_work/python_stuff/python_scripts")
-from small_plot_functions import matrix_show #, col_to_ma, r2_arrays_to_googleEarth
+#from small_plot_functions import matrix_show #, col_to_ma, r2_arrays_to_googleEarth
 # from synth_ts import *
 # from small_plot_functions import low_resolution_ifgs
 # from small_plot_functions import *
@@ -153,7 +153,7 @@ poi_ts_cs = np.cumsum(poi_ts)
 f, ax = plt.subplots(1,1)
 ax.scatter(np.arange(poi_ts_cs.shape[0]), poi_ts_cs)
 ax.axhline(0, c = 'k')
-plt.suptitle('Time series for one point (x:{point_interest[0]} y:{point_interest[1]} ')
+plt.suptitle(f'Time series for one point (x:{point_interest[0]} y:{point_interest[1]} ')
 f.canvas.set_window_title('Time series for one point')
 
 #%% Save the ifgs as pngs.  
