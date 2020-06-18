@@ -16,13 +16,14 @@ sys.path.append("/home/matthew/university_work/01_blind_signal_separation_python
 from ICASAR_functions import ICASAR
 
 sys.path.append("/home/matthew/university_work/python_stuff/python_scripts")
-#from small_plot_functions import matrix_show, col_to_ma, r2_arrays_to_googleEarth
+from small_plot_functions import matrix_show #, col_to_ma, r2_arrays_to_googleEarth
 # from synth_ts import *
 # from small_plot_functions import low_resolution_ifgs
 # from small_plot_functions import *
 # from ifg_plotting_funcs import * 
-#from insar_tools_copy import files_to_daisy_chain, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
-from S1VP_auxilliary_functions import r2_arrays_to_googleEarth, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
+from insar_tools import files_to_daisy_chain, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
+from S1VP_auxilliary_functions import r2_arrays_to_googleEarth 
+#from S1VP_auxilliary_functions import r2_arrays_to_googleEarth, get_daisy_chain, mask_nans, r3_to_r2, baseline_from_names
 
 
 def xarray_to_numpy(xarray_file):
@@ -54,61 +55,23 @@ def xarray_to_numpy(xarray_file):
         
     return phUnw_r3, phUnw_r2, ifg_names, lons, lats
 
-#%% Things to set
+def tcs_plot(tcs, baselines_cs):
+    """Pot the time courses to be easier to see (each gets its own row)
+    """
+    
+    n_tcs = tcs.shape[1]                                                             # each new tc is a colum
+    
+    f, axes = plt.subplots(n_tcs, 1)
+    f.canvas.set_window_title('Time courses plot')
+    
+    for n_tc in range(n_tcs):
+        axes[n_tc].scatter(baselines_cs, tcs[:,n_tc])
+        axes[n_tc].plot(baselines_cs, tcs[:,n_tc])
+        axes[n_tc].axhline(0, c = 'k')
 
-ICASAR_settings = {"n_comp" : 6,                                    # number of components to recover with ICA (ie the number of PCA sources to keep)
-                    "bootstrapping_param" : (200, 0),
-                    "hdbscan_param" : (35, 10),                        # (min_cluster_size, min_samples)
-                    "tsne_param" : (30, 12),                       # (perplexity, early_exaggeration)
-                    "ica_param" : (1e-2, 150),                     # (tolerance, max iterations)
-                    "figures" : 'png+window',
-                    "ge_kmz"    :  True}                            # make a google earth .kmz of the ICs
-
-
-#%% Open the xarray files
-#data = xr.open_dataset('unw.nc')
-
-phUnw_r3, _, ifg_names, lons, lats = xarray_to_numpy('unw.nc')
-coh_r3, _, _, _, _ = xarray_to_numpy('coh.nc')
-
-print('Revesring the order of the latitudes.  ')
-lats = lats[::-1]
-
-#%% Look at coherence
-
-mean_coh = np.mean(coh_r3, axis = 0)
-
-r2_arrays_to_googleEarth(mean_coh[np.newaxis,], lons, lats, layer_name_prefix = 'layer', kmz_filename = 'mean_coherence')
-
-#%% get the daisy chains   | Possibly this can be updated to solve for daisy chains, rather than just discarding the other ones? 
-
-#_, daisy_chain_ifgs, _ = files_to_daisy_chain(ifg_names, figures = True)          # find the dates of the daisy chain ifgs
-phUnw_r3, ifg_names_dc = get_daisy_chain(phUnw_r3, ifg_names)                                           # get the daisy chain ifgs.  
-phUnw_r3_ma = mask_nans(phUnw_r3)                                                                       # mask any nans
-phUnw_r2 = r3_to_r2(phUnw_r3_ma)                                                                        # conver to rank 2
-
-baselines = baseline_from_names(ifg_names_dc)
-baselines_cs = np.cumsum(baselines)
-
-#%% Save the ifgs as pngs.  
-
-# from small_plot_functions import matrix_show
-
-# for ifg_n, ifg_ma in enumerate(phUnw_r3_ma):
-#     matrix_show(ifg_ma, ifg_names_dc[ifg_n], save_path = "./ifgs/")
-
-
-#%% ICASAR
-
-sources, tcs, residual, Iq, n_clusters, S_all_info = ICASAR(phUnw_r2['ifgs'], mask = phUnw_r2['mask'],
-                                                            lons = lons, lats = lats, **ICASAR_settings)
-
-
-
-#%%
 
 def baselines_cs_with_gaps(ifg_names):
-    """
+    """Quick and dirty function to get the baslines for a time sereis with gaps
     """
     import numpy as np
     from datetime import datetime
@@ -122,42 +85,82 @@ def baselines_cs_with_gaps(ifg_names):
     baselines_cs = np.asarray(baselines_cs)
     return baselines_cs
 
+#%% Things to set
 
-baselines_cs2 = baselines_cs_with_gaps(ifg_names_dc)
+ref_region = (10,10)                                                # set a reference region, in x then y, from top left (ie like a matrix)
+point_interest = (42, 30)                                           # x then y, from top left?
 
-#%%
+ICASAR_settings = {"n_comp" : 6,                                    # number of components to recover with ICA (ie the number of PCA sources to keep)
+                    "bootstrapping_param" : (200, 0),
+                    "hdbscan_param" : (35, 10),                        # (min_cluster_size, min_samples)
+                    "tsne_param" : (30, 12),                       # (perplexity, early_exaggeration)
+                    "ica_param" : (1e-2, 150),                     # (tolerance, max iterations)
+                    "figures" : 'png+window',
+                    "ge_kmz"    :  True}                            # make a google earth .kmz of the ICs
 
 
-def tcs_plot(tcs, baselines_cs):
-    """
-    """
-    
-    n_tcs = tcs.shape[1]                                                             # each new tc is a colum
-    
-    f, axes = plt.subplots(n_tcs, 1)
-    f.canvas.set_window_title('Time courses plot')
-    
-    for n_tc in range(n_tcs):
-        axes[n_tc].scatter(baselines_cs, tcs[:,n_tc])
-        axes[n_tc].plot(baselines_cs, tcs[:,n_tc])
-        axes[n_tc].axhline(0, c = 'k')
-        
-tcs_plot(np.cumsum(tcs, axis = 0), baselines_cs2)
-    
-    
-    
-    
-    
-    
+#%% Open the xarray files for unwrapped phase and coherence.  
+#data = xr.open_dataset('unw.nc')
 
-    
-    
-    
-    
-    
-#%%
-    
-    
-    
+phUnw_r3, _, ifg_names, lons, lats = xarray_to_numpy('unw.nc')
+coh_r3, _, _, _, _ = xarray_to_numpy('coh.nc')
 
-f, ax = plt.subplots()
+print('Revesring the order of the latitudes (bit of a fudge) ')
+lats = lats[::-1]
+
+mean_coh = np.mean(coh_r3, axis = 0)
+r2_arrays_to_googleEarth(mean_coh[np.newaxis,], lons, lats, layer_name_prefix = 'layer', kmz_filename = 'mean_coherence')
+
+#%% Set a reference region
+
+_, ny, nx = phUnw_r3.shape                                                                  # get size of ifg, in pixels
+ref_pixel_value = phUnw_r3[:,ref_region[1], ref_region[0]][:, np.newaxis, np.newaxis]
+ref_pixel_r3 = np.repeat(np.repeat(ref_pixel_value, ny, 1), nx, 2)                          # duplicate to be the same size as all the ifgs.  
+phUnw_r3 -= ref_pixel_r3                                                                    # remove from all ifgs so ref pixel is always 0
+
+
+#%% Do ICASAR with all ifgs
+
+# phUnw_r3_ma, n_nan = mask_nans(phUnw_r3, figures = True, threshold = 2)                          # mask any nans, and remove ifgs with more than threshold % of pixels as nans
+# phUnw_r2 = r3_to_r2(phUnw_r3_ma)                                                                        # convert to rank 2 (ifgs as row vectors), ready for ICASAR
+
+# sources, tcs, residual, Iq, n_clusters, S_all_info, phUnw_mean = ICASAR(phUnw_r2['ifgs'], mask = phUnw_r2['mask'],
+#                                                                         lons = lons, lats = lats, **ICASAR_settings,
+#                                                                         out_folder = './ICASAR_outputs_all_ifgs/')
+
+
+
+
+#%% Do ICA with only the short baseline ifgs
+
+phUnw_r3, ifg_names = get_daisy_chain(phUnw_r3, ifg_names)                                        # get the daisy chain ifgs.  
+phUnw_r3_ma, n_nan = mask_nans(phUnw_r3 , threshold = 2)                                          # mask any nans (and drop any ifgs that more than 2% of them are nans)
+phUnw_r2 = r3_to_r2(phUnw_r3_ma )                                                                  # convert to rank 2
+
+baselines_cs  = baselines_cs_with_gaps(ifg_names)                                                  # get the cumulative baselines (ie 6 12 18 24 etc if all 6 day)
+
+sources , tcs , residual , Iq , n_clusters , S_all_info , phUnw_mean  = ICASAR(phUnw_r2 ['ifgs'], mask = phUnw_r2 ['mask'],
+                                                                                             lons = lons, lats = lats, **ICASAR_settings,
+                                                                                             out_folder = './ICASAR_outputs/')
+
+tcs_plot(np.cumsum(tcs , axis = 0), baselines_cs )                                                  # plot the cumulative time coursses
+
+#%% Point of interest
+
+poi_ts = phUnw_r3_ma [:, point_interest[1], point_interest[0]]
+poi_ts_cs = np.cumsum(poi_ts)
+
+f, ax = plt.subplots(1,1)
+ax.scatter(np.arange(poi_ts_cs.shape[0]), poi_ts_cs)
+ax.axhline(0, c = 'k')
+plt.suptitle('Time series for one point (x:{point_interest[0]} y:{point_interest[1]} ')
+f.canvas.set_window_title('Time series for one point')
+
+#%% Save the ifgs as pngs.  
+
+# from small_plot_functions import matrix_show
+
+# for ifg_n, ifg_ma in enumerate(phUnw_r3_ma):
+#     matrix_show(ifg_ma, ifg_names[ifg_n], save_path = "./ifgs/")
+
+

@@ -74,31 +74,6 @@ def r3_to_r2(phUnw):
 
 #%%
 
-def mask_nans(phUnw_r3):
-    """ Given ifgs as a rank3 array that might contain nans, remove any pixels that are nans at any point in the time series.  
-    Note that the same mask is applied through time, so if a pixel is nan in a single ifg, it will be removed from the entire 
-    set.      
-    Inputs:
-        phUnw_r3 | r3 array | n_ifgs x height x width        
-    Returns:
-        phUnw_r3_masked | r3 masked array | n_ifgs x height x width        
-    History:
-        2020/06/09 | MEG | Written
-    """
-    
-    import numpy as np
-    import numpy.ma as ma
-    
-    n_ifgs = phUnw_r3.shape[0]
-    mask_nans = np.zeros(phUnw_r3.shape[1:])                                                         # mask is just zeros to begin with
-    nan_args = np.argwhere(np.isnan(phUnw_r3))                                                      # find nans in set of ifgs
-    for nan_arg in nan_args:                                                                        # loop through each nan point
-        mask_nans[nan_arg[1], nan_arg[2]] = 1                                                       # and modify the y and x location of the mask to be 1 if that pixel should be masked
-    mask_nans = np.repeat(mask_nans[np.newaxis,], n_ifgs, axis = 0)                                 # increase the size of the mask to be rank 3 (like phUnw)
-    phUnw_r3_masked = ma.array(phUnw_r3, mask = mask_nans)                                          # and apply it to phUnw, making it a masked array
-    return phUnw_r3_masked
-
-
 
 
 
