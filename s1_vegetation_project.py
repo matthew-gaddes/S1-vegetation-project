@@ -85,6 +85,25 @@ def baselines_cs_with_gaps(ifg_names):
     baselines_cs = np.asarray(baselines_cs)
     return baselines_cs
 
+
+def col_to_ma(col, pixel_mask):
+    """ A function to take a column vector and a 2d pixel mask and reshape the column into a masked array.  
+    Useful when converting between vectors used by BSS methods results that are to be plotted
+    Inputs:
+        col | rank 1 array | 
+        pixel_mask | array mask (rank 2)
+    Outputs:
+        source | rank 2 masked array | colun as a masked 2d array
+    2017/10/04 | collected from various functions and placed here.  
+    """
+    import numpy.ma as ma 
+    import numpy as np
+    
+    source = ma.array(np.zeros(pixel_mask.shape), mask = pixel_mask )
+    source.unshare_mask()
+    source[~source.mask] = col.ravel()   
+    return source
+
 #%% Things to set
 
 ref_region = (10,10)                                                # set a reference region, in x then y, from top left (ie like a matrix)
@@ -131,11 +150,32 @@ phUnw_r3 -= ref_pixel_r3                                                        
 
 
 
-#%% Do ICA with only the short baseline ifgs
+#%% Do ICASAR with only the short baseline ifgs
 
 phUnw_r3, ifg_names = get_daisy_chain(phUnw_r3, ifg_names)                                        # get the daisy chain ifgs.  
+
+# Milan - 2020/06/30 addition  PhUnwr3 is 83x110x120, as expected, but there are some pixels that are nan occasioanly in the off interferogram, and have to be removed from the entire time series.  
+
 phUnw_r3_ma, n_nan = mask_nans(phUnw_r3 , threshold = 2)                                          # mask any nans (and drop any ifgs that more than 2% of them are nans)
-phUnw_r2 = r3_to_r2(phUnw_r3_ma )                                                                  # convert to rank 2
+
+# now PhUnw_r3_ma is a masked array version of phUnw_r3 - same size (83x110x120), but some pixels in that are masked
+
+phUnw_r2 = r3_to_r2(phUnw_r3_ma )                                                                  # convert to rank 2 (ie row vectors, which are needed for ICA)
+
+# if we want to see the pixels I had to drop (ie the mask):
+f, ax =plt.subplots()
+ax.imshow(phUnw_r2['mask'])
+ax.title('nans mask')
+
+# and having a look at the size of things
+n_pixels_masked = np.sum(phUnw_r2['mask'])                  # should be 60
+# 60 pixels are masked.  (110x120) = 13200
+#       |->                 -60    = 13140
+# phUnw_r2['ifgs'] shape is     83 x 13140   (so the samenumber of pixels)
+
+# to get back to a rank 2 masked array, use a little fuctnion called col_to_ma.  
+test_ifg = col_to_ma(phUnw_r2['ifgs'][0,], phUnw_r2['mask'])
+# and continuing as before.  
 
 baselines_cs  = baselines_cs_with_gaps(ifg_names)                                                  # get the cumulative baselines (ie 6 12 18 24 etc if all 6 day)
 
@@ -153,7 +193,7 @@ poi_ts_cs = np.cumsum(poi_ts)
 f, ax = plt.subplots(1,1)
 ax.scatter(np.arange(poi_ts_cs.shape[0]), poi_ts_cs)
 ax.axhline(0, c = 'k')
-plt.suptitle(f'Time series for one point (x:{point_interest[0]} y:{point_interest[1]} ')
+plt.suptitle(f'Time series for one point (x:{point_interest[0]} y:{point_interest[1]}) ')
 f.canvas.set_window_title('Time series for one point')
 
 #%% Save the ifgs as pngs.  
