@@ -165,7 +165,7 @@ phUnw_r2 = r3_to_r2(phUnw_r3_ma )                                               
 # if we want to see the pixels I had to drop (ie the mask):
 f, ax =plt.subplots()
 ax.imshow(phUnw_r2['mask'])
-ax.title('nans mask')
+ax.set_title('nans mask')
 
 # and having a look at the size of things
 n_pixels_masked = np.sum(phUnw_r2['mask'])                  # should be 60
@@ -179,7 +179,7 @@ test_ifg = col_to_ma(phUnw_r2['ifgs'][0,], phUnw_r2['mask'])
 
 baselines_cs  = baselines_cs_with_gaps(ifg_names)                                                  # get the cumulative baselines (ie 6 12 18 24 etc if all 6 day)
 
-sources , tcs , residual , Iq , n_clusters , S_all_info , phUnw_mean  = ICASAR(phUnw_r2 ['ifgs'], mask = phUnw_r2 ['mask'],
+sources, _,  tcs, residual, Iq, n_clusters, S_all_info, phUnw_mean  = ICASAR(phUnw_r2 ['ifgs'], mask = phUnw_r2 ['mask'],
                                                                                              lons = lons, lats = lats, **ICASAR_settings,
                                                                                              out_folder = './ICASAR_outputs/')
 
